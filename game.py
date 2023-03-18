@@ -1,90 +1,112 @@
-from identification import go_online, go_offline, set_username, stop_identification
-from identification import in_lobby, in_game, waiting_for_connection
-from find_users import find_online_users
-from game import game_server, game_client
+import socket
+import errno
+import time
+import input1
+import Board
+import place
+import Flip
+import Invalidmove
+import win
+
+GAME_PORT = 6005
+# participating clients must use this port for game communication
 
 
-def online_users(my_username=None):
-    global users
-    users = {}
+############## GAME LOGIC ##############
+b = [["" for l in range(9)] for k in range(9)]
+Board.board(b)
+global max_
+max_=60
+global i
+i=0
+def print_current_board(b):
+  Board.display(b)
 
-    for i in find_online_users():
-        if my_username != None and i['username'] == my_username:
-            # ignore own username
+def get_users_move(i,b):
+  x=input1.Input(i,b)
+  return x
+
+def update_game_state(i, x, b,max_):
+  b = place.place(i, x, b)
+  b = Flip.flip(b, i, x)
+  Board.display(b)
+  c = Flip.ctr
+  if c == 0:
+    i, max_, x, b = Invalidmove.invalid(i, max_, x, b)
+
+
+
+############## EXPORTED FUNCTIONS ##############
+
+def game_server(after_connect):
+  with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as accepter_socket:
+      accepter_socket.bind(('', GAME_PORT))
+      accepter_socket.listen(1)
+
+      # non-blocking to allow keyboard interupts (^c)
+      accepter_socket.setblocking(False)
+      while True:
+        try:
+          game_socket, addr = accepter_socket.accept()
+        except socket.error as e:
+          if e.errno == errno.EAGAIN or e.errno == errno.EWOULDBLOCK:
+            time.sleep(0.1)
             continue
-        users[i['username']] = {'ip_address': i['ip_address'], 'status': i['status']}
+        break
 
-    return users
+      game_socket.setblocking(True)
+      with game_socket:
+        after_connect()
+        print('Game Started')
 
+        while True:
 
-def main():
-    # connecting to the network
-    username = input('Enter username: ')
-    while username in online_users():
-        username = input('Username already taken.\nEnter username: ')
-    set_username(username)
-    print('Username set to:', username)
-    go_online()
-
-    # sample menu program
-    while True:
-
-        # print online users
-        print('---online users---')
-        users = online_users(username)
-        for user in users:
-            print('{} ({})'.format(user, users[user]['status']))
-        if not users:
-            print('None Online.')
-
-        # get input
-        user_input = input(
-            '--MENU--\n(1) Go Online (wait for incoming connections)\n(2) Play against an Online Player\n(3) Refresh\n(4) Exit\n--> ')
-        while not user_input.isdigit() and not 1 <= int(user_input) <= 4:
-            user_input = input('Invalid input!\nTry again --> ')
-
-        if user_input == '1':
-            waiting_for_connection()
-            try:
-                print('waiting for incoming connection (^c to cancel)')
-                game_server(after_connect=in_game)
-            except KeyboardInterrupt:
-                in_lobby()
-                print('cancelled.')
-                continue
-            in_lobby()
-
-        elif user_input == '2':
-            try:
-                chosen_opponent = input('Enter opponent username (^c to cancel): ')
-                while True:
-                    if chosen_opponent not in users:
-                        print('No such user online.')
-                    elif users[chosen_opponent]['status'] != 'waiting for connection':
-                        print('Opponent not accepting connections.')
-                    else:
-                        break
-                    chosen_opponent = input('Enter opponent username (^c to cancel): ')
-
-            except KeyboardInterrupt:
-                print('\ncancelled.')
-                continue
-
-            chosen_opponent_ip = users[chosen_opponent]['ip_address']
-            in_game()
-            game_client(chosen_opponent_ip)
-            in_lobby()
-
-        elif user_input == '3':
-            # next iteration will print the new online users
-            continue
-
-        elif user_input == '4':
+          print("waiting for opp's move")
+          opp_move = game_socket.recv(1024).decode()
+          if not opp_move:
+            break
+          update_game_state(i, opp_move,b,max_)
+          i+=1
+          if i==60:
+            win.winner(b)
             break
 
-    go_offline()
-    stop_identification()
-    print('Program Closed.')
+          print_current_board(b)
+          move = get_users_move(i,b)
+          update_game_state(i, move,b,max_)
+          i+=1
+          game_socket.send(move.encode())
+          if i==60:
+            win.winner(b)
+            break
 
-if __name__=="__main__":
-  main()
+      print_current_board(b)
+      print('Game ended')
+
+def game_client(opponent):
+  with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as game_socket:
+      game_socket.connect((opponent, GAME_PORT))
+      print('Game Started')
+
+      while True:
+
+        print_current_board(b)
+        move = get_users_move(i,b)
+        update_game_state('user', move,b,max_)
+        game_socket.send(move.encode())
+        if i == 60:
+          win.winner(b)
+          break
+
+        print("waiting for opp's move")
+        opp_move = game_socket.recv(1024).decode()
+        if not opp_move:
+          break
+        update_game_state('opp', opp_move,b,max_)
+        if i == 60:
+          win.winner(b)
+          break
+
+  print_current_board(b)
+  print('Game ended')
+
