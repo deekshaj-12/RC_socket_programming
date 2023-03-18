@@ -1,34 +1,41 @@
 import socket
 import errno
 import time
+import input1
+import Board
+import place
+import Flip
+import Invalidmove
+import win
 
 GAME_PORT = 6005
 # participating clients must use this port for game communication
 
 
 ############## GAME LOGIC ##############
+b = [["" for i in range(9)] for k in range(9)]
+max_=60
+def print_current_board(b):
+  Board.display(b)
 
-board = ''
+def get_users_move(i,b):
+  x=input1.Input(i,b)
+  return x
 
-def print_current_board():
-  print('board:..')
+def update_game_state(i, x, b,max_):
+  b = place.place(i, x, b)
+  b = Flip.flip(b, i, x)
+  Board.display(b)
+  c = Flip.ctr
+  if c == 0:
+    x = input1.Input(i, b)
+    b = place.place(i, x, b)
+    b = Flip.flip(b, i, x)
+    Board.display(b)
+    c = Flip.ctr
+    if c == 0:
+      i, max_, x, b = Invalidmove.invalid(i, max_, x, b)
 
-def get_users_move():
-  move = input('What is your move: ')
-  return move
-
-def update_game_state(player, move):
-  global board 
-  # update the board
-  board = board + move
-
-  print(player + ' played ' + move)
-
-def has_game_ended():
-  if (board == 'abcd'):
-    return True
-  else:
-    return False
 
 
 ############## EXPORTED FUNCTIONS ##############
@@ -53,25 +60,29 @@ def game_server(after_connect):
       with game_socket:
         after_connect()
         print('Game Started')
-        
+        i = 1
         while True:
 
           print("waiting for opp's move")
           opp_move = game_socket.recv(1024).decode()
           if not opp_move:
             break
-          update_game_state('opp', opp_move)
-          if has_game_ended():
+          update_game_state(i, opp_move,b,max_)
+          i+=1
+          if i==60:
+            win.winner(b)
             break
 
-          print_current_board()
-          move = get_users_move()
-          update_game_state('user', move)
+          print_current_board(b)
+          move = get_users_move(i,b)
+          update_game_state(i, move,b,max_)
+          i+=1
           game_socket.send(move.encode())
-          if has_game_ended():
+          if i==60:
+            win.winner(b)
             break
 
-      print_current_board()
+      print_current_board(b)
       print('Game ended')
 
 def game_client(opponent):
