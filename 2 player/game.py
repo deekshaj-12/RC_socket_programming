@@ -80,6 +80,9 @@ def game_server(after_connect):
                     if i == max_:
                         flag1=1
                         break
+                if flag == 1:
+                    win.winner(b)
+                    break
                 flag = 1
                 while(flag == 1):
                     print_current_board(b)
@@ -92,7 +95,7 @@ def game_server(after_connect):
                 if flag == 1:
                     win.winner(b)
                     break
-                
+
         print_current_board(b)
         print('Game ended')
 
@@ -118,6 +121,9 @@ def game_client(opponent):
                 if i == max_:
                     flag1=1
                     break
+            if flag1 == 1:
+                win.winner(b)
+                break
             flag = 1
             while(flag == 1):
                 print("waiting for opp's move")
@@ -131,7 +137,7 @@ def game_client(opponent):
                     break
             if flag1 == 1:
                 win.winner(b)
-                break;
+                break
 
     print_current_board(b)
     print('Game ended')
