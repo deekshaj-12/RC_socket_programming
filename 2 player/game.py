@@ -27,16 +27,18 @@ def get_users_move(i, b):
 
 def update_game_state(i, x, b, max_):
     int(x)
+    flag=0
     b = place.place(i, x, b)
     b, c = Flip.flip(b, i, x)
     if c == 0:
-            b,n = Invalidmove.invalid(i, x, max_, b)
-            if n == 0:
-                i = i-1
-            elif n == 1:
-                max_ = max_+1
+        flag=1
+        b,n = Invalidmove.invalid(i, x, max_, b)
+        if n == 0:
+            i = i-1
+        elif n == 1:
+            max_ = max_+1
     i +=1
-    return i,max_
+    return i,max_,flag
 
 ############## EXPORTED FUNCTIONS ##############
 
@@ -67,24 +69,30 @@ def game_server(after_connect):
             int(i)
 
             while True:
-
-                print("waiting for opp's move")
-                opp_move = game_socket.recv(1024).decode()
-                if not opp_move:
-                    break
-                i,max_ = update_game_state(i, int(opp_move), b, max_)
-                if i == max_:
+                flag1=0
+                flag=1
+                while(flag == 1):
+                    print("waiting for opp's move")
+                    opp_move = game_socket.recv(1024).decode()
+                    if not opp_move:
+                        break
+                    i,max_,flag = update_game_state(i, int(opp_move), b, max_)
+                    if i == max_:
+                        flag1=1
+                        break
+                flag = 1
+                while(flag == 1):
+                    print_current_board(b)
+                    move = get_users_move(i, b)
+                    i,max_,flag=update_game_state(i, int(move), b, max_)
+                    game_socket.send(str(move).encode())
+                    if i == max_:
+                        flag1=1
+                        break
+                if flag == 1:
                     win.winner(b)
                     break
-
-                print_current_board(b)
-                move = get_users_move(i, b)
-                i,max_=update_game_state(i, int(move), b, max_)
-                game_socket.send(str(move).encode())
-                if i == max_:
-                    win.winner(b)
-                    break
-
+                
         print_current_board(b)
         print('Game ended')
 
@@ -100,24 +108,30 @@ def game_client(opponent):
         int(i)
 
         while True:
-
-            print_current_board(b)
-            move = get_users_move(i, b)
-            i,max_=update_game_state(i, int(move), b, max_)
-            game_socket.send(str(move).encode())
-            if i == max_:
+            flag1=0
+            flag = 1
+            while(flag == 1):
+                print_current_board(b)
+                move = get_users_move(i, b)
+                i,max_,flag=update_game_state(i, int(move), b, max_)
+                game_socket.send(str(move).encode())
+                if i == max_:
+                    flag1=1
+                    break
+            flag = 1
+            while(flag == 1):
+                print("waiting for opp's move")
+                opp_move = game_socket.recv(1024).decode()
+                if not opp_move:
+                    break
+                int(opp_move)
+                i,max_,flag=update_game_state(i, int(opp_move), b, max_)
+                if i == max_:
+                    flag1=1
+                    break
+            if flag1 == 1:
                 win.winner(b)
-                break
-
-            print("waiting for opp's move")
-            opp_move = game_socket.recv(1024).decode()
-            if not opp_move:
-                break
-            int(opp_move)
-            i,max_=update_game_state(i, int(opp_move), b, max_)
-            if i == max_:
-                win.winner(b)
-                break
+                break;
 
     print_current_board(b)
     print('Game ended')
